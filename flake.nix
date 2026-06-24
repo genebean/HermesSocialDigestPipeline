@@ -29,9 +29,9 @@
       {
         formatter = pkgs.nixfmt-tree;
 
-        packages = packages' // {
+        packages = builtins.removeAttrs (packages' // {
           default = packages'.hermes-social-digest-collect;
-        };
+        }) [ "checks" ];
 
         apps = {
           collect = {
@@ -47,20 +47,17 @@
         };
 
         checks = {
-          # These checks build the packaged CLIs with Nix's npm dependency
-          # cache. Unit tests still run in the dev shell (`nix develop -c npm
-          # test`) because they are fast local feedback, while flake checks
-          # verify the packaged artifacts are buildable without host tooling.
-          typecheck = packages'.hermes-social-digest-collect;
-          test = packages'.hermes-social-digest-compile-context;
+          typecheck = packages'.checks.typecheck;
+          test = packages'.checks.test;
+          package = packages'.hermes-social-digest-pipeline;
           home-manager-module =
             (home-manager.lib.homeManagerConfiguration {
               inherit pkgs;
               modules = [
                 self.homeManagerModules.default
                 {
-                  home.username = "gene";
-                  home.homeDirectory = "/home/gene";
+                  home.username = "alice";
+                  home.homeDirectory = "/home/alice";
                   home.stateVersion = "26.05";
                   programs.hermesSocialDigestPipeline.enable = true;
                 }

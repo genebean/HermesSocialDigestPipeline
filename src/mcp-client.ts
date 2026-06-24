@@ -17,10 +17,12 @@ export async function connectMcpFromEnv(env = process.env): Promise<McpToolClien
   if (mode === "http") {
     const url = env.SOCIAL_READER_MCP_URL;
     if (!url) throw new Error("SOCIAL_READER_MCP_URL is required when SOCIAL_READER_MCP_TRANSPORT=http");
-    transport = new StreamableHTTPClientTransport(new URL(url));
+    const parsed = new URL(url);
+    requireSafeHttpUrl(parsed, env);
+    transport = new StreamableHTTPClientTransport(parsed);
   } else if (mode === "stdio") {
-    const command = env.SOCIAL_READER_MCP_COMMAND ?? "/home/gene/repos/HermesSocialSummerizer/node_modules/.bin/tsx";
-    const args = parseArgs(env.SOCIAL_READER_MCP_ARGS ?? "/home/gene/repos/HermesSocialSummerizer/src/server.ts");
+    const command = env.SOCIAL_READER_MCP_COMMAND ?? "social-reader";
+    const args = parseArgs(env.SOCIAL_READER_MCP_ARGS ?? "", env.SOCIAL_READER_MCP_ARGS_JSON);
     transport = new StdioClientTransport({ command, args, stderr: "inherit" });
   } else {
     throw new Error(`Unsupported SOCIAL_READER_MCP_TRANSPORT: ${mode}`);
@@ -48,8 +50,32 @@ export async function connectMcpFromEnv(env = process.env): Promise<McpToolClien
   };
 }
 
-function parseArgs(raw: string): string[] {
-  // Keep this intentionally simple: the expected value is a path or a
-  // whitespace-separated command argument list managed by the user's flake/env.
+function requireSafeHttpUrl(url: URL, env: NodeJS.ProcessEnv): void {
+  if (url.protocol === "https:") return;
+  if (url.protocol !== "http:") throw new Error(`Unsupported MCP URL protocol: ${url.protocol}`);
+  if (isLocalhost(url.hostname)) return;
+  if (env.SOCIAL_READER_MCP_ALLOW_INSECURE_HTTP === "true") return;
+
+  throw new Error(
+    "Refusing non-local http MCP URL. Use https, bind MCP to localhost/tunnel it, "
+      + "or explicitly set SOCIAL_READER_MCP_ALLOW_INSECURE_HTTP=true for a trusted private network.",
+  );
+}
+
+function isLocalhost(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "[::1]";
+}
+
+function parseArgs(raw: string, rawJson?: string): string[] {
+  if (rawJson?.trim()) {
+    const parsed = JSON.parse(rawJson) as unknown;
+    if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== "string")) {
+      throw new Error("SOCIAL_READER_MCP_ARGS_JSON must be a JSON array of strings");
+    }
+    return parsed;
+  }
+
+  // Keep this intentionally simple for the common path-only case. Use
+  // SOCIAL_READER_MCP_ARGS_JSON when an argument contains whitespace.
   return raw.split(/\s+/).map((s) => s.trim()).filter(Boolean);
 }

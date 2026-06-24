@@ -4,3 +4,12 @@ result
 result-*
 .env
 *.log
+
+# Claude Code internals — ignore everything except project skills
+.claude/*
+!.claude/skills/
+!.claude/skills/**
+
+# Hermes Agent local/session state
+.hermes/
+memory/

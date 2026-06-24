@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HermesSocialDigestPipeline User Guide</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #1f2937;
+      --text: #e5e7eb;
+      --muted: #a7b0c0;
+      --accent: #67e8f9;
+      --accent-2: #a78bfa;
+      --border: #334155;
+      --code: #020617;
+      --warn: #fbbf24;
+      --ok: #34d399;
+    }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.6;
+      background: var(--bg);
+      color: var(--text);
+    }
+    a { color: var(--accent); }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+    pre {
+      overflow-x: auto;
+      padding: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      background: var(--code);
+    }
+    code { color: #bae6fd; }
+    header {
+      padding: 4rem 1.25rem 3rem;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(103, 232, 249, 0.15), transparent 30rem),
+        radial-gradient(circle at 80% 0%, rgba(167, 139, 250, 0.16), transparent 26rem),
+        #020617;
+      border-bottom: 1px solid var(--border);
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    .eyebrow { color: var(--accent); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+    h1 { font-size: clamp(2.2rem, 6vw, 4.5rem); line-height: 1; margin: 0.5rem 0 1rem; }
+    h2 { margin-top: 3rem; font-size: 2rem; }
+    h3 { margin-top: 2rem; color: #f8fafc; }
+    .lead { font-size: 1.25rem; color: var(--muted); max-width: 850px; }
+    main { padding: 2rem 1.25rem 5rem; }
+    nav.toc {
+      margin: 2rem 0;
+      padding: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      background: rgba(17, 24, 39, 0.75);
+    }
+    nav.toc ul { columns: 2; padding-left: 1.25rem; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
+    }
+    .card, .callout {
+      padding: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      background: var(--panel);
+    }
+    .card h3 { margin-top: 0; }
+    .callout { border-left: 4px solid var(--accent); }
+    .callout.warning { border-left-color: var(--warn); }
+    .callout.ok { border-left-color: var(--ok); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      background: var(--panel);
+      border-radius: 0.75rem;
+      overflow: hidden;
+    }
+    th, td { border: 1px solid var(--border); padding: 0.75rem; vertical-align: top; }
+    th { background: var(--panel-2); text-align: left; }
+    .muted { color: var(--muted); }
+    @media (max-width: 720px) {
+      nav.toc ul { columns: 1; }
+      header { padding-top: 2.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div class="eyebrow">End-user guide</div>
+      <h1>HermesSocialDigestPipeline</h1>
+      <p class="lead">Collect compact social-feed candidates throughout the day, keep them private on the Hermes host, and compile bounded context for a daily Hermes Agent social digest.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <nav class="toc" aria-label="Table of contents">
+      <strong>Contents</strong>
+      <ul>
+        <li><a href="#what-it-does">What it does</a></li>
+        <li><a href="#mental-model">Mental model</a></li>
+        <li><a href="#quick-start">Quick start</a></li>
+        <li><a href="#state">State and privacy</a></li>
+        <li><a href="#mcp">MCP connection</a></li>
+        <li><a href="#commands">Commands</a></li>
+        <li><a href="#home-manager">Home Manager</a></li>
+        <li><a href="#daily-operation">Daily operation</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+        <li><a href="#verification">Verification</a></li>
+      </ul>
+    </nav>
+
+    <section id="what-it-does">
+      <h2>What it does</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Collects candidates</h3>
+          <p>The collector calls the read-only <code>social-reader</code> MCP timeline tools and stores compact candidate rows locally.</p>
+        </div>
+        <div class="card">
+          <h3>Protects cursors</h3>
+          <p>It fetches with <code>advance_cursor: false</code>, writes candidates to disk, then calls <code>mark_seen</code>. If marking fails, you get duplicates rather than lost items.</p>
+        </div>
+        <div class="card">
+          <h3>Compiles LLM context</h3>
+          <p>The compiler reads cached candidates, deduplicates them, and emits bounded JSON for a scheduled Hermes digest job.</p>
+        </div>
+      </div>
+      <p>This repo is intentionally Hermes-host tooling. The MCP server can remain independent and does not need Hermes Agent, digest scripts, SSH access, or shared storage.</p>
+    </section>
+
+    <section id="mental-model">
+      <h2>Mental model</h2>
+      <ol>
+        <li>The <strong>MCP server</strong> owns social-platform credentials and platform cursor state.</li>
+        <li>The <strong>collector</strong> asks the MCP for recent posts without advancing cursors.</li>
+        <li>The collector writes candidates and batch summaries under the local state directory.</li>
+        <li>Only after persistence succeeds, the collector calls <code>mark_seen</code> for successful platform/account batches.</li>
+        <li>The <strong>compiler</strong> turns cached candidates into bounded JSON that Hermes can summarize.</li>
+      </ol>
+      <div class="callout ok">
+        <strong>Failure mode:</strong> if the process fails after persistence but before <code>mark_seen</code>, the next run may see duplicates. That is intentional and safer than losing posts.
+      </div>
+    </section>
+
+    <section id="quick-start">
+      <h2>Quick start</h2>
+      <p>The current local setup uses stdio to run the MCP from the HermesSocialSummerizer checkout.</p>
+      <h3>1. Dry-run the collector</h3>
+      <pre><code>nix run .#collect -- --dry-run --verbose</code></pre>
+      <p>A dry run fetches and summarizes, but does not write state and does not call <code>mark_seen</code>.</p>
+      <h3>2. Run a real collection</h3>
+      <pre><code>nix run .#collect -- --verbose</code></pre>
+      <h3>3. Compile digest context</h3>
+      <pre><code>nix run .#compile-context -- --since-hours 24 --max-candidates 250</code></pre>
+      <p>The output is JSON. Feed it into the Hermes LLM job that writes the human-readable daily digest.</p>
+    </section>
+
+    <section id="state">
+      <h2>State and privacy</h2>
+      <p>Default state directory:</p>
+      <pre><code>~/.local/state/HermesSocialSummerizer/social-digest/</code></pre>
+      <p>Override it with:</p>
+      <pre><code>export SOCIAL_DIGEST_STATE_DIR=/path/to/social-digest-state</code></pre>
+      <table>
+        <thead><tr><th>Path</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>batches/</code></td><td>Per-run collection summaries, including per-platform status and mark-seen results.</td></tr>
+          <tr><td><code>candidates/YYYY-MM-DD/*.jsonl</code></td><td>Compact social candidate rows, one JSONL file per collection batch.</td></tr>
+          <tr><td><code>briefings/</code></td><td>Reserved for generated briefing artifacts.</td></tr>
+        </tbody>
+      </table>
+      <p>Directories are set to <code>0700</code>; files are set to <code>0600</code>.</p>
+      <p>Retention defaults to 30 days and runs only after a successful real collection. Change it with:</p>
+      <pre><code>hermes-social-digest-collect --prune-days 14</code></pre>
+      <p>Disable retention pruning with:</p>
+      <pre><code>hermes-social-digest-collect --prune-days 0</code></pre>
+    </section>
+
+    <section id="mcp">
+      <h2>MCP connection</h2>
+      <h3>Local stdio mode</h3>
+      <pre><code>export SOCIAL_READER_MCP_TRANSPORT=stdio
+export SOCIAL_READER_MCP_COMMAND=/path/to/HermesSocialSummerizer/node_modules/.bin/tsx
+export SOCIAL_READER_MCP_ARGS=/path/to/HermesSocialSummerizer/src/server.ts</code></pre>
+      <p>If an argument contains whitespace, use JSON:</p>
+      <pre><code>export SOCIAL_READER_MCP_ARGS_JSON='["/path/with spaces/server.ts"]'</code></pre>
+
+      <h3>HTTP mode for a future LAN MCP</h3>
+      <pre><code>export SOCIAL_READER_MCP_TRANSPORT=http
+export SOCIAL_READER_MCP_URL=https://social-reader.lan/mcp</code></pre>
+      <div class="callout warning">
+        <strong>Security note:</strong> non-local <code>http://</code> MCP URLs are blocked unless <code>SOCIAL_READER_MCP_ALLOW_INSECURE_HTTP=true</code> is set. Prefer HTTPS, a localhost tunnel, WireGuard, or an authenticated reverse proxy.
+      </div>
+    </section>
+
+    <section id="commands">
+      <h2>Commands</h2>
+      <h3><code>hermes-social-digest-collect</code></h3>
+      <table>
+        <thead><tr><th>Option</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>--dry-run</code></td><td>Fetch and summarize without writing cache or calling <code>mark_seen</code>.</td></tr>
+          <tr><td><code>--verbose</code></td><td>Print a run summary as JSON.</td></tr>
+          <tr><td><code>--if-previous-hit-limit</code></td><td>Exit silently unless the previous successful batch hit a fetch cap or incomplete coverage.</td></tr>
+          <tr><td><code>--prune-days N</code></td><td>Delete state files older than N days after a successful run. Default is 30; 0 disables pruning.</td></tr>
+        </tbody>
+      </table>
+      <h3><code>hermes-social-digest-compile-context</code></h3>
+      <table>
+        <thead><tr><th>Option</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>--since-hours N</code></td><td>Candidate window to read from state. Default is 24.</td></tr>
+          <tr><td><code>--max-candidates N</code></td><td>Maximum deduplicated candidates to emit. Default is 250.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="home-manager">
+      <h2>Home Manager installation</h2>
+      <p>The flake exposes a Home Manager module:</p>
+      <pre><code>hermes-social-digest-pipeline.homeManagerModules.default</code></pre>
+      <p>Minimal configuration:</p>
+      <pre><code>{
+  imports = [ hermes-social-digest-pipeline.homeManagerModules.default ];
+
+  programs.hermesSocialDigestPipeline = {
+    enable = true;
+    timers.enable = true;
+  };
+}</code></pre>
+      <p>Common options:</p>
+      <pre><code>programs.hermesSocialDigestPipeline = {
+  stateDir = "/home/YOUR_USER/.local/state/HermesSocialSummerizer/social-digest";
+
+  mcp.transport = "stdio";
+  mcp.command = "/path/to/HermesSocialSummerizer/node_modules/.bin/tsx";
+  mcp.args = [ "/path/to/HermesSocialSummerizer/src/server.ts" ];
+
+  # Whitespace-safe replacement for mcp.args.
+  mcp.argsJson = null;
+
+  timers.collectSchedules = [ "10:00" "14:00" "18:00" "22:00" ];
+  timers.catchupSchedule = "02:00";
+};</code></pre>
+      <p>When enabled, the module can install the package, link the Hermes skill into <code>~/.hermes/skills/hermes-social-digest-pipeline</code>, and create user systemd timers.</p>
+    </section>
+
+    <section id="daily-operation">
+      <h2>Recommended daily operation</h2>
+      <ol>
+        <li>Run normal collectors at 10:00, 14:00, 18:00, and 22:00.</li>
+        <li>Run smart overnight catch-up at 02:00 with <code>--if-previous-hit-limit</code>.</li>
+        <li>At digest time, run the compiler and pass its JSON to the Hermes LLM prompt.</li>
+      </ol>
+      <pre><code>hermes-social-digest-compile-context --since-hours 24 --max-candidates 250</code></pre>
+      <p class="muted">The compiler does not contact the social platforms. It only reads local cached state.</p>
+    </section>
+
+    <section id="troubleshooting">
+      <h2>Troubleshooting</h2>
+      <table>
+        <thead><tr><th>Symptom</th><th>What to check</th></tr></thead>
+        <tbody>
+          <tr><td>Collector exits before fetching</td><td>Confirm <code>SOCIAL_READER_MCP_TRANSPORT</code>, command/path, and MCP server startup.</td></tr>
+          <tr><td>HTTP MCP URL refused</td><td>Use HTTPS, localhost/tunnel, or set <code>SOCIAL_READER_MCP_ALLOW_INSECURE_HTTP=true</code> only on a trusted private network.</td></tr>
+          <tr><td>Digest context is empty</td><td>Run a real collection first, check <code>SOCIAL_DIGEST_STATE_DIR</code>, and verify <code>--since-hours</code> covers the collection window.</td></tr>
+          <tr><td>Duplicate items appear</td><td>This can happen after a failed <code>mark_seen</code>. It is safer than data loss; compiler dedupe should remove many duplicates.</td></tr>
+          <tr><td>Nix cannot see new files</td><td>Run <code>git add -A</code> before <code>nix flake check</code> so flake evaluation sees new tracked paths.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="verification">
+      <h2>Verification</h2>
+      <p>For development or release checks, run:</p>
+      <pre><code>nix develop -c npm run typecheck
+nix develop -c npm test
+nix develop -c npm run build
+nix flake check</code></pre>
+      <p>For an end-to-end non-mutating smoke test:</p>
+      <pre><code>nix run .#collect -- --dry-run --verbose
+nix run .#compile-context -- --since-hours 24 --max-candidates 10</code></pre>
+    </section>
+  </main>
+</body>
+</html>

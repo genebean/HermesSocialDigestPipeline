@@ -33,6 +33,7 @@ export type PlatformBatchSummary = {
   newest_created_at?: string;
   cursor_value?: string | number;
   marked_seen: boolean;
+  mark_seen_error?: string;
   error?: string;
 };
 

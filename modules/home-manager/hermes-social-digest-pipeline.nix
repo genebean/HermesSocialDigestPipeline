@@ -20,9 +20,17 @@ let
   // lib.optionalAttrs (cfg.mcp.transport == "http") {
     SOCIAL_READER_MCP_URL = cfg.mcp.url;
   }
+  // lib.optionalAttrs cfg.mcp.allowInsecureHttp {
+    SOCIAL_READER_MCP_ALLOW_INSECURE_HTTP = "true";
+  }
   // lib.optionalAttrs (cfg.mcp.transport == "stdio") {
     SOCIAL_READER_MCP_COMMAND = cfg.mcp.command;
+  }
+  // lib.optionalAttrs (cfg.mcp.transport == "stdio" && cfg.mcp.argsJson == null) {
     SOCIAL_READER_MCP_ARGS = lib.concatStringsSep " " cfg.mcp.args;
+  }
+  // lib.optionalAttrs (cfg.mcp.transport == "stdio" && cfg.mcp.argsJson != null) {
+    SOCIAL_READER_MCP_ARGS_JSON = builtins.toJSON cfg.mcp.argsJson;
   };
 
   envLines = lib.mapAttrsToList (name: value: "${name}=${value}") env;
@@ -86,16 +94,28 @@ in
         description = "HTTP MCP URL when transport is http.";
       };
 
+      allowInsecureHttp = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Permit non-local unencrypted HTTP MCP URLs. Prefer HTTPS, localhost tunnels, or private WireGuard links instead.";
+      };
+
       command = lib.mkOption {
         type = lib.types.str;
-        default = "/home/gene/repos/HermesSocialSummerizer/node_modules/.bin/tsx";
+        default = "social-reader";
         description = "stdio command for local MCP development.";
       };
 
       args = lib.mkOption {
         type = lib.types.listOf lib.types.str;
-        default = [ "/home/gene/repos/HermesSocialSummerizer/src/server.ts" ];
+        default = [ ];
         description = "stdio command arguments for local MCP development.";
+      };
+
+      argsJson = lib.mkOption {
+        type = lib.types.nullOr (lib.types.listOf lib.types.str);
+        default = null;
+        description = "Whitespace-safe stdio argument list emitted as SOCIAL_READER_MCP_ARGS_JSON. Overrides args when set.";
       };
     };
 

@@ -1,13 +1,7 @@
-# Cron Setup
+# Cron setup
 
-Suggested collector cadence:
+Collectors should run as silent script-only jobs. Normal cadence: 10:00, 14:00, 18:00, 22:00. Smart overnight catch-up runs at 02:00 with `--if-previous-hit-limit`.
 
-- 10:00 — normal collection
-- 14:00 — normal collection
-- 18:00 — normal collection
-- 22:00 — normal collection
-- 02:00 — smart catch-up with `--if-previous-hit-limit`
+Normal collector runs prune state files older than 30 days by default. Override with `--prune-days N` or disable retention pruning with `--prune-days 0`.
 
-Collectors should run with `no_agent=true` when scheduled by Hermes cron and should print nothing on success.
-
-The 06:00 digest job runs the compiler first and feeds its compact JSON output into the LLM prompt.
+The 6am LLM digest job should consume `hermes-social-digest-compile-context` output and should not fetch full-day timelines directly unless the cache is missing and the user approves fallback behavior.

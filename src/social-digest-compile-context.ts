@@ -13,8 +13,8 @@ Options:
 `);
 }
 
-const sinceHours = numberOption("--since-hours", 24);
-const maxCandidates = numberOption("--max-candidates", 250);
+const sinceHours = numberOption("--since-hours", 24, { min: 1 });
+const maxCandidates = numberOption("--max-candidates", 250, { min: 1 });
 const since = new Date(Date.now() - sinceHours * 60 * 60 * 1000);
 const candidates = dedupeCandidates(await readCandidatesSince(since)).slice(0, maxCandidates);
 

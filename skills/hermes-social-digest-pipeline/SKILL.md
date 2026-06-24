@@ -1,58 +1,97 @@
 ---
 name: hermes-social-digest-pipeline
-description: Use when operating the Hermes-side social digest collector/cache/compiler pipeline that consumes the read-only HermesSocialSummerizer MCP as a black-box endpoint.
+description: Use when operating or modifying the Hermes-side social digest collector/cache/compiler pipeline for a black-box social-reader MCP.
 version: 0.1.0
 author: Hermes Agent
 license: MIT
 metadata:
   hermes:
-    tags: [social-feed, mcp, cron, nix, home-manager]
-    related_skills: [social-feed-interest-scan, home-manager-flake-integrations]
+    tags: [hermes, social-reader, cron, nix, home-manager]
+    related_skills: [social-feed-interest-scan]
 ---
 
 # Hermes Social Digest Pipeline
 
 ## Overview
 
-This skill documents the Hermes-side pipeline that collects compact candidates from a read-only HermesSocialSummerizer MCP server and compiles bounded context for a daily LLM-generated digest.
+This skill is the operational runbook for `HermesSocialDigestPipeline`, a Hermes-host automation package that collects compact social-feed candidates from a black-box `social-reader` MCP and compiles bounded context for a 6am LLM digest.
 
-The MCP server is a black box. Do not require scripts, shared files, SSH access, or a Hermes Agent on the MCP host. The collector/compiler run on the Hermes host and talk to MCP via configurable stdio or HTTP transport.
+The MCP host is independent. Do not require a Hermes Agent, digest scripts, SSH access, shared files, or extra MCP tools on the MCP host. The pipeline runs on the Hermes host and talks to the MCP using a configured stdio or HTTP transport.
 
 ## When to Use
 
-- Maintaining `HermesSocialDigestPipeline`.
-- Wiring Hermes cron jobs for social digest collection.
-- Debugging digest cache coverage, cap hits, or cursor safety.
-- Installing the pipeline through Nix/Home Manager.
+Use this skill when:
 
-## Runtime State
+- wiring Hermes cron jobs for recurring social digests;
+- debugging collector/cache/compiler behavior;
+- changing Nix packages, Home Manager integration, or skill installation;
+- moving from local stdio MCP access to LAN HTTP MCP access;
+- verifying cursor safety or cache retention behavior.
 
-Default state path:
+Do not use this skill for editorial ranking alone; use `social-feed-interest-scan` for ranking preferences and digest content policy.
 
-```text
-/home/gene/.local/state/HermesSocialSummerizer/social-digest/
+## State and boundaries
+
+- Runtime state lives on the Hermes host under `${SOCIAL_DIGEST_STATE_DIR}`.
+- Default state dir: `~/.local/state/HermesSocialSummerizer/social-digest`.
+- State directories are private (`0700`) and files are private (`0600`).
+- Normal collector runs prune state files older than 30 days by default; use `--prune-days 0` to disable pruning.
+- Candidate rows are stored as per-batch JSONL files under `candidates/YYYY-MM-DD/<batch-id>.jsonl`.
+- The MCP owns platform credentials and platform cursor state.
+- The pipeline owns candidate cache, batch summaries, generated briefing artifacts, and smart catch-up decisions.
+- Persist candidates before calling `mark_seen`. If `mark_seen` fails after persistence, accept duplicates; dedupe handles them and data is not lost.
+
+## Commands
+
+```bash
+hermes-social-digest-collect --dry-run --verbose
+hermes-social-digest-collect --if-previous-hit-limit
+hermes-social-digest-collect --prune-days 30
+hermes-social-digest-compile-context --since-hours 24 --max-candidates 250
 ```
 
-Override with `SOCIAL_DIGEST_STATE_DIR`.
+Nix equivalents:
 
-## Cursor Safety
+```bash
+nix run /path/to/HermesSocialDigestPipeline#collect -- --dry-run --verbose
+nix run /path/to/HermesSocialDigestPipeline#compile-context -- --since-hours 24 --max-candidates 250
+```
 
-1. Fetch timeline candidates with `advance_cursor: false`.
-2. Persist candidates and batch summaries locally.
-3. Only after persistence succeeds, call `mark_seen` for successful platform/account batches.
-4. If `mark_seen` fails after persistence, accept duplicates; dedupe handles them and data is not lost.
+## Environment
 
-## Nix/Home Manager
+```bash
+SOCIAL_READER_MCP_TRANSPORT=stdio|http
+SOCIAL_READER_MCP_COMMAND=/path/to/HermesSocialSummerizer/node_modules/.bin/tsx
+SOCIAL_READER_MCP_ARGS=/path/to/HermesSocialSummerizer/src/server.ts
+SOCIAL_READER_MCP_ARGS_JSON=["/path/with spaces/server.ts"]
+SOCIAL_READER_MCP_URL=https://social-reader.lan/mcp
+SOCIAL_READER_MCP_ALLOW_INSECURE_HTTP=true
+SOCIAL_DIGEST_STATE_DIR=/path/to/social-digest-state
+```
 
-This repo exposes packages/apps plus `homeManagerModules.hermes-social-digest-pipeline`.
+For HTTP MCP access, prefer HTTPS, localhost tunnels, WireGuard, or an authenticated reverse proxy. Non-local `http://` URLs require the explicit insecure opt-in above.
 
-The module can install CLI tools, link this skill into the active Hermes profile, and define user timers. Direct `home.file` linking from the user's main flake remains acceptable.
+When using the Home Manager module and stdio arguments contain whitespace, set `programs.hermesSocialDigestPipeline.mcp.argsJson`; it emits `SOCIAL_READER_MCP_ARGS_JSON` and overrides the whitespace-joined `mcp.args` value.
+
+## Schedule
+
+Collector cadence:
+
+- 10:00 — normal collection
+- 14:00 — normal collection
+- 18:00 — normal collection
+- 22:00 — normal collection
+- 02:00 — smart catch-up with `--if-previous-hit-limit`
+
+The smart catch-up exits silently when the previous successful batch did not hit a limit, max-pages cap, or incomplete coverage flag.
 
 ## Verification Checklist
 
 - [ ] `nix develop -c npm run typecheck` passes.
 - [ ] `nix develop -c npm test` passes.
 - [ ] `nix develop -c npm run build` passes.
-- [ ] `nix flake check` passes.
-- [ ] Collector dry-run does not change MCP cursor state.
-- [ ] Compiler emits bounded JSON context.
+- [ ] `nix flake check` passes and runs package, typecheck, test, and Home Manager module checks.
+- [ ] dry-run collection does not call `mark_seen`.
+- [ ] collector writes only under `SOCIAL_DIGEST_STATE_DIR`.
+- [ ] compiler output is bounded and does not emit raw full feeds.
+- [ ] Home Manager module links the skill only on the Hermes host.
