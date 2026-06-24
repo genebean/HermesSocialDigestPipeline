@@ -1,0 +1,29 @@
+{
+  "name": "hermes-social-digest-pipeline",
+  "version": "0.1.0",
+  "description": "Hermes-side collector/cache/compiler for HermesSocialSummerizer MCP social digests.",
+  "type": "module",
+  "bin": {
+    "hermes-social-digest-collect": "dist/social-digest-collect.js",
+    "hermes-social-digest-compile-context": "dist/social-digest-compile-context.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"src/*.test.ts\"",
+    "collect:digest": "tsx src/social-digest-collect.ts",
+    "compile:digest-context": "tsx src/social-digest-compile-context.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "license": "MIT"
+}
