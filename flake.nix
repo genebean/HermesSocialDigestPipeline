@@ -29,9 +29,12 @@
       {
         formatter = pkgs.nixfmt-tree;
 
-        packages = builtins.removeAttrs (packages' // {
-          default = packages'.hermes-social-digest-collect;
-        }) [ "checks" ];
+        packages = builtins.removeAttrs (
+          packages'
+          // {
+            default = packages'.hermes-social-digest-collect;
+          }
+        ) [ "checks" ];
 
         apps = {
           collect = {
@@ -70,6 +73,7 @@
             nodejs_24
             deadnix
             nixfmt-tree
+            pre-commit
           ];
 
           shellHook = ''
