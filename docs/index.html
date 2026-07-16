@@ -195,9 +195,10 @@ export SOCIAL_READER_MCP_ARGS=/path/to/HermesSocialSummerizer/src/server.ts</cod
 
       <h3>HTTP mode for a future LAN MCP</h3>
       <pre><code>export SOCIAL_READER_MCP_TRANSPORT=http
-export SOCIAL_READER_MCP_URL=https://social-reader.lan/mcp</code></pre>
+export SOCIAL_READER_MCP_URL=https://social-reader.lan/mcp
+export SOCIAL_READER_MCP_HTTP_TOKEN=&lt;token&gt;</code></pre>
       <div class="callout warning">
-        <strong>Security note:</strong> non-local <code>http://</code> MCP URLs are blocked unless <code>SOCIAL_READER_MCP_ALLOW_INSECURE_HTTP=true</code> is set. Prefer HTTPS, a localhost tunnel, WireGuard, or an authenticated reverse proxy.
+        <strong>Security note:</strong> when <code>SOCIAL_READER_MCP_HTTP_TOKEN</code> is set, it is sent as an HTTP bearer token. Non-local <code>http://</code> MCP URLs are blocked unless <code>SOCIAL_READER_MCP_ALLOW_INSECURE_HTTP=true</code> is set. Prefer HTTPS, a localhost tunnel, WireGuard, or an authenticated reverse proxy.
       </div>
     </section>
 
@@ -239,6 +240,7 @@ export SOCIAL_READER_MCP_URL=https://social-reader.lan/mcp</code></pre>
       <p>Common options:</p>
       <pre><code>programs.hermesSocialDigestPipeline = {
   stateDir = "/home/YOUR_USER/.local/state/HermesSocialSummerizer/social-digest";
+  environmentFile = "/home/YOUR_USER/.config/hermes-social-digest.env"; # optional, keep secrets outside the Nix store
 
   mcp.transport = "stdio";
   mcp.command = "/path/to/HermesSocialSummerizer/node_modules/.bin/tsx";

@@ -65,13 +65,16 @@ SOCIAL_READER_MCP_COMMAND=/path/to/HermesSocialSummerizer/node_modules/.bin/tsx
 SOCIAL_READER_MCP_ARGS=/path/to/HermesSocialSummerizer/src/server.ts
 SOCIAL_READER_MCP_ARGS_JSON=["/path/with spaces/server.ts"]
 SOCIAL_READER_MCP_URL=https://social-reader.lan/mcp
+SOCIAL_READER_MCP_HTTP_TOKEN=<token>
 SOCIAL_READER_MCP_ALLOW_INSECURE_HTTP=true
 SOCIAL_DIGEST_STATE_DIR=/path/to/social-digest-state
 ```
 
-For HTTP MCP access, prefer HTTPS, localhost tunnels, WireGuard, or an authenticated reverse proxy. Non-local `http://` URLs require the explicit insecure opt-in above.
+For HTTP MCP access, prefer HTTPS, localhost tunnels, WireGuard, or an authenticated reverse proxy. Set `SOCIAL_READER_MCP_HTTP_TOKEN` when the MCP requires bearer-token authentication. Non-local `http://` URLs require the explicit insecure opt-in above.
 
 When using the Home Manager module and stdio arguments contain whitespace, set `programs.hermesSocialDigestPipeline.mcp.argsJson`; it emits `SOCIAL_READER_MCP_ARGS_JSON` and overrides the whitespace-joined `mcp.args` value.
+
+For HTTP bearer tokens under Home Manager, set `programs.hermesSocialDigestPipeline.environmentFile` to a user-private environment file outside the Nix store containing `SOCIAL_READER_MCP_HTTP_TOKEN=...`.
 
 ## Schedule
 

@@ -78,6 +78,12 @@ in
       description = "Local Hermes-host digest cache/state directory.";
     };
 
+    environmentFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = "Optional systemd EnvironmentFile path for secrets such as SOCIAL_READER_MCP_HTTP_TOKEN. Keep this outside the Nix store.";
+    };
+
     mcp = {
       transport = lib.mkOption {
         type = lib.types.enum [
@@ -159,6 +165,9 @@ in
         Type = "oneshot";
         Environment = envLines;
         ExecStart = "${package}/bin/hermes-social-digest-collect";
+      }
+      // lib.optionalAttrs (cfg.environmentFile != null) {
+        EnvironmentFile = cfg.environmentFile;
       };
     };
 
@@ -177,6 +186,9 @@ in
         Type = "oneshot";
         Environment = envLines;
         ExecStart = "${package}/bin/hermes-social-digest-collect --if-previous-hit-limit";
+      }
+      // lib.optionalAttrs (cfg.environmentFile != null) {
+        EnvironmentFile = cfg.environmentFile;
       };
     };
 

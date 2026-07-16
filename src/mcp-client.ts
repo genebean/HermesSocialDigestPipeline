@@ -19,7 +19,7 @@ export async function connectMcpFromEnv(env = process.env): Promise<McpToolClien
     if (!url) throw new Error("SOCIAL_READER_MCP_URL is required when SOCIAL_READER_MCP_TRANSPORT=http");
     const parsed = new URL(url);
     requireSafeHttpUrl(parsed, env);
-    transport = new StreamableHTTPClientTransport(parsed);
+    transport = new StreamableHTTPClientTransport(parsed, httpTransportOptions(env));
   } else if (mode === "stdio") {
     const command = env.SOCIAL_READER_MCP_COMMAND ?? "social-reader";
     const args = parseArgs(env.SOCIAL_READER_MCP_ARGS ?? "", env.SOCIAL_READER_MCP_ARGS_JSON);
@@ -48,6 +48,12 @@ export async function connectMcpFromEnv(env = process.env): Promise<McpToolClien
       await transport.close?.();
     },
   };
+}
+
+function httpTransportOptions(env: NodeJS.ProcessEnv): { requestInit?: RequestInit } | undefined {
+  const token = env.SOCIAL_READER_MCP_HTTP_TOKEN?.trim();
+  if (!token) return undefined;
+  return { requestInit: { headers: { Authorization: "Bearer ".concat(token) } } };
 }
 
 function requireSafeHttpUrl(url: URL, env: NodeJS.ProcessEnv): void {
