@@ -112,6 +112,7 @@ Prefer HTTPS, a localhost tunnel, WireGuard, or an authenticated reverse proxy:
 ```bash
 export SOCIAL_READER_MCP_TRANSPORT=http
 export SOCIAL_READER_MCP_URL=https://social-reader.lan/mcp
+export SOCIAL_READER_MCP_HTTP_TOKEN=<token>
 ```
 
 Non-local `http://` MCP URLs are blocked unless explicitly allowed:
@@ -120,7 +121,7 @@ Non-local `http://` MCP URLs are blocked unless explicitly allowed:
 export SOCIAL_READER_MCP_ALLOW_INSECURE_HTTP=true
 ```
 
-Even though the MCP is read-only toward social platforms, it can expose private feed data and `mark_seen`, so do not publish it unauthenticated on an untrusted network.
+When `SOCIAL_READER_MCP_HTTP_TOKEN` is set, the collector sends it as an HTTP bearer token. Even though the MCP is read-only toward social platforms, it can expose private feed data and `mark_seen`, so do not publish it unauthenticated on an untrusted network.
 
 ## Home Manager installation
 
@@ -153,6 +154,7 @@ Useful options:
 programs.hermesSocialDigestPipeline = {
   enable = true;
   stateDir = "/home/YOUR_USER/.local/state/HermesSocialSummerizer/social-digest";
+  environmentFile = "/home/YOUR_USER/.config/hermes-social-digest.env"; # optional, keep secrets outside the Nix store
 
   mcp.transport = "stdio";
   mcp.command = "/path/to/HermesSocialSummerizer/node_modules/.bin/tsx";
