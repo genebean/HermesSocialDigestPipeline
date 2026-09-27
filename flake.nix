@@ -100,5 +100,8 @@
     // {
       homeManagerModules.default = self.homeManagerModules.hermes-social-digest-pipeline;
       homeManagerModules.hermes-social-digest-pipeline = import ./modules/home-manager/hermes-social-digest-pipeline.nix self;
+
+      nixosModules.default = self.nixosModules.hermes-social-digest-collect;
+      nixosModules.hermes-social-digest-collect = import ./nix/module.nix self;
     };
 }
