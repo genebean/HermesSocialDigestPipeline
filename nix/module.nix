@@ -140,9 +140,11 @@ in
 
     mcp.url = lib.mkOption {
       type = lib.types.str;
-      default = "http://127.0.0.1:8787";
+      default = "http://127.0.0.1:8787/mcp";
       description = ''
-        HTTP MCP URL. Defaults to the loopback address on the assumption
+        HTTP MCP URL, including the /mcp path — social-reader-mcp's HTTP
+        transport only recognizes POST /mcp, not the bare root path.
+        Defaults to the loopback address on the assumption
         that this service is co-located on the same host as
         services.social-reader-mcp's HTTP listener — no LAN or Tailscale
         hop, and no need to widen the MCP's bind address for this consumer.
