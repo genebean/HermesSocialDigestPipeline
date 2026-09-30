@@ -19,8 +19,8 @@ jobs:
     name: TypeScript type check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: DeterminateSystems/nix-installer-action@v22
+      - uses: actions/checkout@v7
+      - uses: DeterminateSystems/nix-installer-action@v23
       - name: Install npm dependencies
         run: nix develop --command npm ci --include=dev
       - name: Type check
@@ -30,8 +30,8 @@ jobs:
     name: Unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: DeterminateSystems/nix-installer-action@v22
+      - uses: actions/checkout@v7
+      - uses: DeterminateSystems/nix-installer-action@v23
       - name: Install npm dependencies
         run: nix develop --command npm ci --include=dev
       - name: Run tests
@@ -41,8 +41,8 @@ jobs:
     name: npm build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: DeterminateSystems/nix-installer-action@v22
+      - uses: actions/checkout@v7
+      - uses: DeterminateSystems/nix-installer-action@v23
       - name: Install npm dependencies
         run: nix develop --command npm ci --include=dev
       - name: Build package
@@ -52,8 +52,8 @@ jobs:
     name: npm audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "24"
       - name: Audit for critical vulnerabilities
@@ -63,5 +63,5 @@ jobs:
     name: dependency review
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/dependency-review-action@v5.0.0
