@@ -13,7 +13,7 @@ buildNpmPackage {
 
   # Recompute after any package-lock.json change:
   #   nix run nixpkgs#prefetch-npm-deps package-lock.json
-  npmDepsHash = "sha256-FOzSGzIyf6Bhn5pE35DOsZCbJYEEwTuWFB3x8/Qu9eg=";
+  npmDepsHash = "sha256-CkOlRQy2JnWQuBpPKTNE0befIzYV+41cHLs4496qTfY=";
 
   npmBuildScript = script;
 
