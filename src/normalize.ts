@@ -59,6 +59,17 @@ function normalizePost(platform: DigestPlatform, accountId: string, batchId: str
     tags,
     engagement: engagement(raw),
     raw_ref: stringValue(raw.id) ?? stringValue(raw.uri) ?? stringValue(raw.nostr_uri),
+    ...threadIds(platform, raw),
+  };
+}
+
+function threadIds(platform: DigestPlatform, raw: Record<string, unknown>): { reply_to_id?: string; root_id?: string } {
+  if (platform !== "nostr") return {};
+  const replyToId = stringValue(raw.reply_to_id);
+  const rootId = stringValue(raw.root_id);
+  return {
+    ...(replyToId ? { reply_to_id: replyToId } : {}),
+    ...(rootId ? { root_id: rootId } : {}),
   };
 }
 
