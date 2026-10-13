@@ -16,6 +16,12 @@ export type DigestCandidate = {
   urls: string[];
   tags: string[];
   engagement?: Record<string, number>;
+  // Nostr NIP-10 thread markers (nostr_following_feed already returns
+  // these; only populated for platform === "nostr"). reply_to_id is the
+  // direct parent, root_id is the thread root - either may be set
+  // without the other depending on how the author tagged the note.
+  reply_to_id?: string;
+  root_id?: string;
   raw_ref?: string;
 };
 
