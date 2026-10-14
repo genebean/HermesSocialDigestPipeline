@@ -34,8 +34,8 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@v23
       - name: Install npm dependencies
         run: nix develop --command npm ci --include=dev
-      - name: Run tests
-        run: nix develop --command npm test
+      - name: Run tests with coverage
+        run: nix develop --command npm run test:coverage
 
   build:
     name: npm build
