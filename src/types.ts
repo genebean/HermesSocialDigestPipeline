@@ -37,9 +37,14 @@ export type PlatformBatchSummary = {
   coverage_complete: boolean;
   oldest_created_at?: string;
   newest_created_at?: string;
+  // The position to persist as this platform/account's next collection
+  // starting point - the oldest item actually fetched when this run was
+  // capped (hit_max_pages), the newest when coverage was complete. See
+  // normalizePosts() in normalize.ts for why this isn't always "newest".
   cursor_value?: string | number;
-  marked_seen: boolean;
-  mark_seen_error?: string;
+  cursor_created_at?: string;
+  cursor_written: boolean;
+  cursor_write_error?: string;
   error?: string;
 };
 

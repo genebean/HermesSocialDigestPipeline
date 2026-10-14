@@ -1,4 +1,4 @@
-import { newestCursor, stableKey, titleFromText } from "./digest-cache.js";
+import { newestCursor, oldestCursor, stableKey, titleFromText } from "./digest-cache.js";
 import type { DigestCandidate, DigestPlatform, PlatformBatchSummary } from "./types.js";
 
 export function normalizePosts(params: {
@@ -11,10 +11,20 @@ export function normalizePosts(params: {
   maxPages: number;
 }): { candidates: DigestCandidate[]; summary: PlatformBatchSummary } {
   const candidates = params.posts.map((post) => normalizePost(params.platform, params.accountId, params.batchId, params.collectedAt, post));
-  const newest = newestCursor(params.platform, candidates);
   const created = candidates.map((c) => c.created_at).filter(Boolean).sort();
   const hitLimit = params.posts.length >= params.limit;
   const hitMaxPages = params.posts.length >= params.limit * params.maxPages;
+  const coverageComplete = !hitMaxPages;
+  // Advancing to the newest fetched item is only safe when coverage is
+  // complete. A capped run (hit_max_pages) returns a contiguous "most
+  // recent K" slice, not the full gap back to the previous position -
+  // advancing straight to "newest" would silently and permanently skip
+  // everything older than this run's pagination cutoff but newer than
+  // where collection actually left off. Advance to the oldest item this
+  // run actually fetched instead, so the next run picks up exactly where
+  // this one stopped rather than jumping past unprocessed backlog.
+  const cursorValue = coverageComplete ? newestCursor(params.platform, candidates) : oldestCursor(params.platform, candidates);
+  const cursorCreatedAt = coverageComplete ? created.at(-1) : created[0];
   return {
     candidates,
     summary: {
@@ -25,11 +35,12 @@ export function normalizePosts(params: {
       max_pages: params.maxPages,
       hit_limit: hitLimit,
       hit_max_pages: hitMaxPages,
-      coverage_complete: !hitMaxPages,
+      coverage_complete: coverageComplete,
       oldest_created_at: created[0],
       newest_created_at: created.at(-1),
-      cursor_value: newest,
-      marked_seen: false,
+      cursor_value: cursorValue,
+      cursor_created_at: cursorCreatedAt,
+      cursor_written: false,
     },
   };
 }
