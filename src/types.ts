@@ -16,10 +16,12 @@ export type DigestCandidate = {
   urls: string[];
   tags: string[];
   engagement?: Record<string, number>;
-  // Nostr NIP-10 thread markers (nostr_following_feed already returns
-  // these; only populated for platform === "nostr"). reply_to_id is the
-  // direct parent, root_id is the thread root - either may be set
-  // without the other depending on how the author tagged the note.
+  // Reply reference, normalized across platforms by threadIds() in
+  // normalize.ts - each platform's own MCP tool result names this
+  // differently (Nostr's NIP-10 markers, Mastodon's in_reply_to_id,
+  // Bluesky's reply.{parent,root}). reply_to_id is the direct parent,
+  // root_id is the thread root where the platform has one - Mastodon has
+  // no separate root concept, so root_id never gets set there.
   reply_to_id?: string;
   root_id?: string;
   raw_ref?: string;

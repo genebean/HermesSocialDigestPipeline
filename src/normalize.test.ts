@@ -77,7 +77,7 @@ test("complete run advances the cursor to the newest item fetched", () => {
   assert.equal(summary.cursor_created_at, new Date(2000 * 1000).toISOString());
 });
 
-test("never sets reply_to_id/root_id for non-nostr platforms, even if present in the raw payload", () => {
+test("ignores Nostr-named reply_to_id/root_id fields on non-nostr platforms", () => {
   const { candidates } = normalizePosts({
     ...baseParams,
     platform: "mastodon",
@@ -87,13 +87,64 @@ test("never sets reply_to_id/root_id for non-nostr platforms, even if present in
         author: "author",
         text: "text",
         created_at: "2026-10-13T00:00:00.000Z",
-        // A mastodon post has no NIP-10 concept - these fields shouldn't
-        // exist in real Mastodon API responses, but prove the platform
-        // guard actually gates on `platform`, not just field presence.
+        // Each platform's reply reference has its own field name
+        // (threadIds() in normalize.ts) - a raw payload carrying the
+        // Nostr-named fields on another platform should still be ignored,
+        // proving the platform guard reads the right field per platform
+        // rather than any field that happens to be present.
         reply_to_id: "should-be-ignored",
         root_id: "should-be-ignored",
       },
     ],
+  });
+  assert.equal(candidates[0].reply_to_id, undefined);
+  assert.equal(candidates[0].root_id, undefined);
+});
+
+test("preserves reply_to_id (from in_reply_to_id) for a mastodon reply", () => {
+  const { candidates } = normalizePosts({
+    ...baseParams,
+    platform: "mastodon",
+    posts: [{ id: "1", author: "author", text: "text", created_at: "2026-10-13T00:00:00.000Z", in_reply_to_id: "42" }],
+  });
+  assert.equal(candidates[0].reply_to_id, "42");
+  // Mastodon has no separate "root" concept - only the immediate parent.
+  assert.equal(candidates[0].root_id, undefined);
+});
+
+test("omits reply_to_id for a standalone mastodon status", () => {
+  const { candidates } = normalizePosts({
+    ...baseParams,
+    platform: "mastodon",
+    posts: [{ id: "1", author: "author", text: "text", created_at: "2026-10-13T00:00:00.000Z", in_reply_to_id: null }],
+  });
+  assert.equal(candidates[0].reply_to_id, undefined);
+});
+
+test("preserves reply_to_id and root_id (from reply_parent_uri/reply_root_uri) for a bluesky reply", () => {
+  const { candidates } = normalizePosts({
+    ...baseParams,
+    platform: "bluesky",
+    posts: [
+      {
+        uri: "at://1",
+        author: "author",
+        text: "text",
+        created_at: "2026-10-13T00:00:00.000Z",
+        reply_parent_uri: "at://parent",
+        reply_root_uri: "at://root",
+      },
+    ],
+  });
+  assert.equal(candidates[0].reply_to_id, "at://parent");
+  assert.equal(candidates[0].root_id, "at://root");
+});
+
+test("omits reply_to_id/root_id for a standalone bluesky post", () => {
+  const { candidates } = normalizePosts({
+    ...baseParams,
+    platform: "bluesky",
+    posts: [{ uri: "at://1", author: "author", text: "text", created_at: "2026-10-13T00:00:00.000Z" }],
   });
   assert.equal(candidates[0].reply_to_id, undefined);
   assert.equal(candidates[0].root_id, undefined);

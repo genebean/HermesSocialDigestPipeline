@@ -75,9 +75,20 @@ function normalizePost(platform: DigestPlatform, accountId: string, batchId: str
 }
 
 function threadIds(platform: DigestPlatform, raw: Record<string, unknown>): { reply_to_id?: string; root_id?: string } {
-  if (platform !== "nostr") return {};
-  const replyToId = stringValue(raw.reply_to_id);
-  const rootId = stringValue(raw.root_id);
+  // Each platform's MCP tool result names its own reply reference
+  // differently - normalize to the shared reply_to_id/root_id shape here
+  // rather than carrying three platform-specific field names downstream.
+  if (platform === "nostr") return idPair(stringValue(raw.reply_to_id), stringValue(raw.root_id));
+  if (platform === "mastodon") {
+    // The Mastodon REST API has no separate "root" concept - only the
+    // immediate parent - so root_id never gets set for this platform.
+    return idPair(stringValue(raw.in_reply_to_id), undefined);
+  }
+  if (platform === "bluesky") return idPair(stringValue(raw.reply_parent_uri), stringValue(raw.reply_root_uri));
+  return {};
+}
+
+function idPair(replyToId: string | undefined, rootId: string | undefined): { reply_to_id?: string; root_id?: string } {
   return {
     ...(replyToId ? { reply_to_id: replyToId } : {}),
     ...(rootId ? { root_id: rootId } : {}),
