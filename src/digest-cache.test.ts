@@ -6,15 +6,20 @@ import test from "node:test";
 
 import {
   dedupeCandidates,
+  effectiveSince,
   ensureStateDirs,
   latestSuccessfulSummary,
+  MAX_LOOKBACK_HOURS,
   newestCursor,
+  oldestCursor,
   previousRunHitLimit,
   pruneOlderThan,
   readCandidatesSince,
+  readCursors,
   stableKey,
   statePaths,
   writeBatch,
+  writeCursor,
 } from "./digest-cache.js";
 import type { CollectionBatch, DigestCandidate } from "./types.js";
 
@@ -67,12 +72,25 @@ test("newestCursor handles platform cursor shapes", () => {
   assert.equal(newestCursor("nostr", [candidate({ platform: "nostr", cursor_value: 10 }), candidate({ platform: "nostr", cursor_value: 12 })]), 12);
 });
 
+test("oldestCursor handles platform cursor shapes", () => {
+  // Mastodon: "9" vs "10" is the reason this isn't a plain string sort -
+  // "10" sorts before "9" lexically, numerically it doesn't.
+  assert.equal(oldestCursor("mastodon", [candidate({ cursor_value: "9" }), candidate({ cursor_value: "10" })]), "9");
+  assert.equal(oldestCursor("bluesky", [candidate({ platform: "bluesky", cursor_value: "2026-01-01T00:00:00Z" }), candidate({ platform: "bluesky", cursor_value: "2026-01-02T00:00:00Z" })]), "2026-01-01T00:00:00Z");
+  assert.equal(oldestCursor("nostr", [candidate({ platform: "nostr", cursor_value: 10 }), candidate({ platform: "nostr", cursor_value: 12 })]), 10);
+});
+
+test("oldestCursor and newestCursor both return undefined for an empty candidate list", () => {
+  assert.equal(oldestCursor("mastodon", []), undefined);
+  assert.equal(newestCursor("mastodon", []), undefined);
+});
+
 test("writeBatch and readCandidatesSince persist per-batch JSONL candidates with private permissions", async () => {
   const root = await mkdtemp(join(tmpdir(), "hsdp-"));
   try {
     const item = batch();
     await writeBatch(item, root);
-    await writeBatch({ ...item, summaries: [{ platform: "mastodon", account_id: "main", fetched_count: 1, limit: 40, max_pages: 3, hit_limit: false, hit_max_pages: false, coverage_complete: true, marked_seen: true }] }, root);
+    await writeBatch({ ...item, summaries: [{ platform: "mastodon", account_id: "main", fetched_count: 1, limit: 40, max_pages: 3, hit_limit: false, hit_max_pages: false, coverage_complete: true, cursor_written: true }] }, root);
 
     const rows = await readCandidatesSince(new Date("2026-06-23T00:00:00Z"), root);
     assert.equal(rows.length, 1);
@@ -102,7 +120,7 @@ test("readCandidatesSince skips date buckets older than the requested window", a
 
 test("previousRunHitLimit detects cap-hit summaries", async () => {
   assert.equal(previousRunHitLimit(undefined), false);
-  assert.equal(previousRunHitLimit([{ platform: "mastodon", account_id: "main", fetched_count: 1, limit: 40, max_pages: 1, hit_limit: true, hit_max_pages: false, coverage_complete: false, marked_seen: true }]), true);
+  assert.equal(previousRunHitLimit([{ platform: "mastodon", account_id: "main", fetched_count: 1, limit: 40, max_pages: 1, hit_limit: true, hit_max_pages: false, coverage_complete: false, cursor_written: true }]), true);
 });
 
 test("latestSuccessfulSummary returns newest batch with fetched posts", async () => {
@@ -111,7 +129,7 @@ test("latestSuccessfulSummary returns newest batch with fetched posts", async ()
     await ensureStateDirs(root);
     await writeBatch(batch({
       candidates: [],
-      summaries: [{ platform: "mastodon", account_id: "main", fetched_count: 1, limit: 40, max_pages: 1, hit_limit: false, hit_max_pages: false, coverage_complete: true, marked_seen: true }],
+      summaries: [{ platform: "mastodon", account_id: "main", fetched_count: 1, limit: 40, max_pages: 1, hit_limit: false, hit_max_pages: false, coverage_complete: true, cursor_written: true }],
     }), root);
     const summaries = await latestSuccessfulSummary(root);
     assert.equal(summaries?.[0]?.platform, "mastodon");
@@ -135,4 +153,67 @@ test("pruneOlderThan removes stale state files", async () => {
 
 test("statePaths uses caller-provided root", () => {
   assert.equal(statePaths("/tmp/example").candidates, "/tmp/example/candidates");
+});
+
+test("readCursors returns an empty store when no cursor file exists yet", async () => {
+  const root = await mkdtemp(join(tmpdir(), "hsdp-"));
+  try {
+    assert.deepEqual(await readCursors(root), {});
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("writeCursor persists per-platform/account cursors, readable back via readCursors", async () => {
+  const root = await mkdtemp(join(tmpdir(), "hsdp-"));
+  try {
+    await writeCursor("mastodon", "main", { since_id: "42", cursor_created_at: "2026-06-24T00:00:00.000Z" }, root);
+    await writeCursor("nostr", "main", { since_ts: 1750000000, cursor_created_at: "2026-06-24T00:00:00.000Z" }, root);
+
+    const store = await readCursors(root);
+    assert.equal(store.mastodon?.main?.since_id, "42");
+    assert.equal(store.nostr?.main?.since_ts, 1750000000);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("writeCursor does not clobber a different account's or platform's cursor", async () => {
+  const root = await mkdtemp(join(tmpdir(), "hsdp-"));
+  try {
+    await writeCursor("mastodon", "main", { since_id: "1", cursor_created_at: "2026-06-24T00:00:00.000Z" }, root);
+    await writeCursor("mastodon", "work", { since_id: "2", cursor_created_at: "2026-06-24T00:00:00.000Z" }, root);
+    await writeCursor("nostr", "main", { since_ts: 100, cursor_created_at: "2026-06-24T00:00:00.000Z" }, root);
+
+    const store = await readCursors(root);
+    assert.equal(store.mastodon?.main?.since_id, "1");
+    assert.equal(store.mastodon?.work?.since_id, "2");
+    assert.equal(store.nostr?.main?.since_ts, 100);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("effectiveSince returns nothing for an undefined cursor (first-ever run)", () => {
+  assert.deepEqual(effectiveSince(undefined), {});
+});
+
+test("effectiveSince returns the stored since-value when within the lookback floor", () => {
+  const now = new Date("2026-06-24T12:00:00.000Z");
+  const recent = new Date(now.getTime() - 1 * 3600 * 1000).toISOString(); // 1h ago
+  const result = effectiveSince({ since_id: "42", cursor_created_at: recent }, now);
+  assert.equal(result.since_id, "42");
+});
+
+test("effectiveSince drops a cursor older than MAX_LOOKBACK_HOURS", () => {
+  const now = new Date("2026-06-24T12:00:00.000Z");
+  const stale = new Date(now.getTime() - (MAX_LOOKBACK_HOURS + 1) * 3600 * 1000).toISOString();
+  assert.deepEqual(effectiveSince({ since_id: "42", cursor_created_at: stale }, now), {});
+});
+
+test("effectiveSince keeps a cursor exactly at the lookback floor boundary", () => {
+  const now = new Date("2026-06-24T12:00:00.000Z");
+  const atFloor = new Date(now.getTime() - MAX_LOOKBACK_HOURS * 3600 * 1000 + 1000).toISOString(); // 1s inside
+  const result = effectiveSince({ since: "x", cursor_created_at: atFloor }, now);
+  assert.equal(result.since, "x");
 });

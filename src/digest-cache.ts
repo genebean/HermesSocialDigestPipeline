@@ -85,6 +85,24 @@ export function newestCursor(platform: DigestPlatform, candidates: DigestCandida
   return candidates.map((c) => String(c.cursor_value)).sort().at(-1);
 }
 
+// Mirror of newestCursor, ascending instead of descending. Needed because
+// advancing to "newest fetched" is only safe when a run's coverage is
+// complete - a capped run returns a contiguous "most recent K" slice, and
+// advancing past it would silently skip everything older than the
+// pagination cutoff but newer than where collection actually left off.
+export function oldestCursor(platform: DigestPlatform, candidates: DigestCandidate[]): string | number | undefined {
+  if (candidates.length === 0) return undefined;
+  if (platform === "mastodon") {
+    return candidates
+      .map((c) => String(c.cursor_value))
+      .sort((a, b) => {
+        try { return Number(BigInt(a) - BigInt(b)); } catch { return a.localeCompare(b); }
+      })[0];
+  }
+  if (platform === "nostr") return Math.min(...candidates.map((c) => Number(c.cursor_value)).filter(Number.isFinite));
+  return candidates.map((c) => String(c.cursor_value)).sort()[0];
+}
+
 export async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true, mode: PRIVATE_DIR_MODE });
   const tmp = `${path}.tmp-${process.pid}`;
@@ -101,6 +119,69 @@ export async function writeJsonlAtomic(path: string, rows: unknown[]): Promise<v
   await writeFile(tmp, content ? `${content}\n` : "", { encoding: "utf8", mode: PRIVATE_FILE_MODE });
   await rename(tmp, path);
   await chmod(path, PRIVATE_FILE_MODE).catch(() => undefined);
+}
+
+// Per-platform/account collection progress. Lives here now, not in the MCP
+// server (genebean/HermesSocialSummerizer#33) - this pipeline is the one
+// consumer that actually needs "where did I leave off," so it's the one
+// that owns tracking it, rather than shared server state every caller has
+// to coordinate through correctly.
+export type PlatformCursor = {
+  since_id?: string; // mastodon
+  since?: string; // bluesky
+  since_ts?: number; // nostr
+  // ISO timestamp of whichever candidate since_id/since/since_ts came from -
+  // used only to decide whether this cursor is still within the lookback
+  // floor below, never sent to the MCP itself.
+  cursor_created_at?: string;
+};
+
+type CursorStore = Record<string, Record<string, PlatformCursor>>; // platform -> account_id -> cursor
+
+const CURSOR_FILE = "cursors.json";
+
+export async function readCursors(root = resolveStateDir()): Promise<CursorStore> {
+  const paths = await ensureStateDirs(root);
+  try {
+    return JSON.parse(await readFile(join(paths.root, CURSOR_FILE), "utf8")) as CursorStore;
+  } catch {
+    return {};
+  }
+}
+
+export async function writeCursor(
+  platform: DigestPlatform,
+  accountId: string,
+  cursor: PlatformCursor,
+  root = resolveStateDir()
+): Promise<void> {
+  const store = await readCursors(root);
+  store[platform] ??= {};
+  store[platform][accountId] = cursor;
+  const paths = await ensureStateDirs(root);
+  await writeJsonAtomic(join(paths.root, CURSOR_FILE), store);
+}
+
+// This pipeline exists to facilitate a *daily* report, not to faithfully
+// backfill an arbitrary backlog - a missed run or two should catch up
+// fully, but an extended outage shouldn't try to claw back days of now-
+// irrelevant material. Recomputed on every call rather than tied to
+// calendar-day boundaries, which have an awkward edge case right after
+// midnight (a report running at 5:30am local would have almost no "today"
+// to look back across).
+export const MAX_LOOKBACK_HOURS = 36;
+
+// What since-value to actually pass for a platform/account's next fetch:
+// the persisted cursor if it's still within the lookback floor, nothing at
+// all if it's gone stale (too far behind, or never collected before) - in
+// that case the fetch falls back to whatever default window the platform
+// itself uses, accepting the gap rather than trying to reach back for it.
+export function effectiveSince(cursor: PlatformCursor | undefined, now = new Date()): PlatformCursor {
+  if (!cursor?.cursor_created_at) return {};
+  const floorMs = now.getTime() - MAX_LOOKBACK_HOURS * 3600 * 1000;
+  if (new Date(cursor.cursor_created_at).getTime() < floorMs) return {};
+  const { since_id, since, since_ts } = cursor;
+  return { since_id, since, since_ts };
 }
 
 export async function writeBatch(batch: CollectionBatch, root = resolveStateDir()): Promise<void> {
